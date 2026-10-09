@@ -34,6 +34,12 @@ class ParticleSystem:
         # Particle related properties
         self.x = ti.Vector.field(self.dim, dtype=float)
         self.v = ti.Vector.field(self.dim, dtype=float)
+        # 用于pbd粒子
+        self.pred_x = ti.Vector.field(self.dim, dtype=float)
+        self.lambda_ = ti.field(dtype=float)
+        self.delta_p = ti.Vector.field(self.dim, dtype=float)
+        self.tmp_v = ti.Vector.field(self.dim, dtype=float)
+
         self.density = ti.field(dtype=float)
         self.pressure = ti.field(dtype=float)
         self.material = ti.field(dtype=int)
@@ -42,7 +48,7 @@ class ParticleSystem:
         self.particle_neighbors_num = ti.field(int)
 
         self.particles_node = ti.root.dense(ti.i, self.particle_max_num)
-        self.particles_node.place(self.x, self.v, self.density, self.pressure, self.material, self.color)
+        self.particles_node.place(self.x, self.v, self.density, self.pressure, self.material, self.color, self.pred_x, self.lambda_, self.delta_p, self.tmp_v)
         self.particles_node.place(self.particle_neighbors_num)
         self.particle_node = self.particles_node.dense(ti.j, self.particle_max_num_neighbor)
         self.particle_node.place(self.particle_neighbors)
@@ -63,18 +69,23 @@ class ParticleSystem:
         self.pressure[p] = pressure
         self.material[p] = material
         self.color[p] = color
+        self.pred_x[p] = x
+        self.lambda_[p] = 0.0
+        self.delta_p[p] = ti.Vector.zero(float, self.dim)
+        self.tmp_v[p] = v
 
     @ti.kernel
     def add_particles(self, new_particles_num: int,
-                      new_particles_positions: ti.ext_arr(),
-                      new_particles_velocity: ti.ext_arr(),
-                      new_particle_density: ti.ext_arr(),
-                      new_particle_pressure: ti.ext_arr(),
-                      new_particles_material: ti.ext_arr(),
-                      new_particles_color: ti.ext_arr()):
+                      new_particles_positions: ti.types.ndarray(),
+                      new_particles_velocity: ti.types.ndarray(),
+                      new_particle_density: ti.types.ndarray(),
+                      new_particle_pressure: ti.types.ndarray(),
+                      new_particles_material: ti.types.ndarray(),
+                      new_particles_color: ti.types.ndarray()):
         for p in range(self.particle_num[None], self.particle_num[None] + new_particles_num):
             v = ti.Vector.zero(float, self.dim)
             x = ti.Vector.zero(float, self.dim)
+
             for d in ti.static(range(self.dim)):
                 v[d] = new_particles_velocity[p - self.particle_num[None], d]
                 x[d] = new_particles_positions[p - self.particle_num[None], d]
@@ -101,7 +112,7 @@ class ParticleSystem:
     def allocate_particles_to_grid(self):
         for p in range(self.particle_num[None]):
             cell = self.pos_to_index(self.x[p])
-            offset = self.grid_particles_num[cell].atomic_add(1)
+            offset = ti.atomic_add(self.grid_particles_num[cell], 1)
             self.grid_particles[cell, offset] = p
 
     @ti.kernel
@@ -133,13 +144,13 @@ class ParticleSystem:
         self.search_neighbors()
 
     @ti.kernel
-    def copy_to_numpy_nd(self, np_arr: ti.ext_arr(), src_arr: ti.template()):
+    def copy_to_numpy_nd(self, np_arr: ti.types.ndarray(), src_arr: ti.template()):
         for i in range(self.particle_num[None]):
             for j in ti.static(range(self.dim)):
                 np_arr[i, j] = src_arr[i][j]
 
     @ti.kernel
-    def copy_to_numpy(self, np_arr: ti.ext_arr(), src_arr: ti.template()):
+    def copy_to_numpy(self, np_arr: ti.types.ndarray(), src_arr: ti.template()):
         for i in range(self.particle_num[None]):
             np_arr[i] = src_arr[i]
 
