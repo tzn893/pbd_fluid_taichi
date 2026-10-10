@@ -1,7 +1,5 @@
 # 基于taichi的2D PBD Fluid模拟
 
-声明，本demo绝大部分代码由人类手搓
-
 ## 背景简介
 
 基于taichi语言的[PBD Fluid](https://dl.acm.org/doi/10.1145/2461912.2461984) demo，基于 [WCSPH]([taichiCourse01/taichi_sph](https://github.com/taichiCourse01/taichi_sph)) 的代码改编。
