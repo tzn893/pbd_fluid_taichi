@@ -7,7 +7,7 @@ class SPHBase:
     def __init__(self, particle_system):
         self.ps = particle_system
         self.g = -9.80  # Gravity
-        self.viscosity = 0.05  # viscosity
+        self.viscosity = 0.3  # viscosity
         self.density_0 = 1000.0  # reference density
         self.mass = self.ps.m_V * self.density_0
         self.dt = ti.field(float, shape=())

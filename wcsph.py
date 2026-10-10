@@ -2,11 +2,12 @@ import taichi as ti
 from sph_base import SPHBase
 
 class WCSPHSolver(SPHBase):
-    def __init__(self, particle_system):
+    def __init__(self, particle_system, dt = 4e-5):
         super().__init__(particle_system)
         # Pressure state function parameters(WCSPH)
         self.exponent = 7.0
         self.stiffness = 50.0
+        self.dt[None] = dt
 
         self.d_velocity = ti.Vector.field(self.ps.dim, dtype=float)
         particle_node = ti.root.dense(ti.i, self.ps.particle_max_num)

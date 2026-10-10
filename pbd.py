@@ -53,8 +53,6 @@ class PBDFluid(SPHBase):
     def integrate(self):
         for i in range(self.ps.particle_num[None]):
             self.ps.v[i] += ti.Vector([0.0, self.g]) * self.dt[None]
-            # Reset predicted position from current position (which may have been
-            # clamped by enforce_boundary), not by accumulating on the old pred_x.
             self.ps.pred_x[i] = self.ps.x[i] + self.ps.v[i] * self.dt[None]
             self.ps.lambda_[i] = 0.0
 
@@ -62,8 +60,6 @@ class PBDFluid(SPHBase):
     @ti.kernel
     def calculate_lamdba(self):
         for p_i in range(self.ps.particle_num[None]):
-            # Only correct over-density; correcting under-density makes the
-            # solver oscillate and diverge.
             constraint = ti.max(self.ps.density[p_i] / self.density_0 - 1.0, 0.0)
             x_i = self.ps.pred_x[p_i]
 
@@ -182,11 +178,17 @@ class PBDFluid(SPHBase):
             else:
                 self.ps.tmp_v[p_i] = self.ps.v[p_i]
 
-    def apply_viscosity_pingpong(self):
+    @ti.kernel
+    def copy_viscosity_to_velocity(self):
+        # Copy the smoothed velocities back into v. This is a separate pass
+        # because apply_viscosity reads v of the neighbors, so it cannot write
+        # v in place without a race.
+        for p_i in range(self.ps.particle_num[None]):
+            self.ps.v[p_i] = self.ps.tmp_v[p_i]
+
+    def apply_viscosity_pass(self):
         self.apply_viscosity()
-        tmp = self.ps.tmp_v
-        self.ps.tmp_v = self.ps.v
-        self.ps.v = tmp
+        self.copy_viscosity_to_velocity()
 
         
     def step(self):
@@ -195,5 +197,5 @@ class PBDFluid(SPHBase):
             self.ps.initialize_particle_system()
             self.substep()
         self.update_position_and_velocity()
-        # self.apply_viscosity_pingpong()
+        self.apply_viscosity_pass()
         
