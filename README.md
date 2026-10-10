@@ -1,11 +1,21 @@
-# 太极图形课S1-SPH 示例程序
+# 基于taichi的2D PBD Fluid模拟
+
+声明，本demo绝大部分代码由人类手搓
 
 ## 背景简介
-该repo实现了一种Weakly Compressible Smooth Particle Hydrodynamics (WCSPH) 方法，部分实现参考[SPlisHSPlasH](https://github.com/InteractiveComputerGraphics/SPlisHSPlasH)
+
+基于taichi语言的[PBD Fluid](https://dl.acm.org/doi/10.1145/2461912.2461984) demo，基于 [WCSPH]([taichiCourse01/taichi_sph](https://github.com/taichiCourse01/taichi_sph)) 的代码改编。
 
 ## 效果展示
 
-<img src="./imgs/wcsph.gif" width="350">
+PBD Fluid相比SPH最大的优势就是在大时间步长下抗造，相同时间步长下PBD Fluid与WCSPH的效果对比如图所示（在本人的测试中PBD Fluid大概在步长为$0.032$时扛不住）
+
+|            | PBD                    | WCSPH                    |
+| ---------- | ---------------------- | ------------------------ |
+| $dt=0.001$ | ![](imgs/pbd_1e-3.gif) | ![](imgs/wcsph_1e-3.gif) |
+| $dt=0.004$ | ![](imgs/pbd_4e-3.gif) | ![](imgs/wcsph_4e-3.gif) |
+
+
 
 
 ## 运行环境
