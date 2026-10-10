@@ -2,7 +2,7 @@
 
 ## 背景简介
 
-基于taichi语言的[PBD Fluid](https://dl.acm.org/doi/10.1145/2461912.2461984) demo，基于 [WCSPH]([taichiCourse01/taichi_sph](https://github.com/taichiCourse01/taichi_sph)) 的代码改编。
+基于taichi语言的[PBD Fluid](https://dl.acm.org/doi/10.1145/2461912.2461984) demo，基于 [WCSPH](https://github.com/taichiCourse01/taichi_sph) 的代码改编。
 
 ## 效果展示
 
