@@ -1,8 +1,42 @@
 from sph_base import *
+from particle_system import ParticleSystem
+
+
+@ti.data_oriented
+class PBDParticleSystem(ParticleSystem):
+    """Particle system dedicated to the PBD solver.
+
+    It reuses everything from ParticleSystem and only adds the PBD-specific
+    per-particle state. The spatial grid and neighbor lists are built from
+    ``pred_x`` instead of ``x`` so that the neighbor search stays consistent
+    with the positions the PBD constraints actually operate on.
+    """
+
+    def __init__(self, res):
+        super().__init__(res)
+        # PBD-only particle state.
+        self.pred_x = ti.Vector.field(self.dim, dtype=float)
+        self.lambda_ = ti.field(dtype=float)
+        self.delta_p = ti.Vector.field(self.dim, dtype=float)
+        self.tmp_v = ti.Vector.field(self.dim, dtype=float)
+        self.particles_node.place(self.pred_x, self.lambda_, self.delta_p, self.tmp_v)
+
+    @ti.func
+    def search_position(self, p):
+        # Build the grid / neighbor lists from the predicted positions.
+        return self.pred_x[p]
+
+    @ti.func
+    def init_particle_extra(self, p, x, v):
+        self.pred_x[p] = x
+        self.lambda_[p] = 0.0
+        self.delta_p[p] = ti.Vector.zero(float, self.dim)
+        self.tmp_v[p] = v
+
 
 class PBDFluid(SPHBase):
     
-    def __init__(self, particle_system, solver_iter_cnt = 6, relax = 4e-2, k = 0.0, c = 0.01, dt = 4e-3):
+    def __init__(self, particle_system, solver_iter_cnt = 6, relax = 4e-2, k = 0.0, c = 0.01, dt = 1e-2):
         super().__init__(particle_system)
         # PBF stores number density sum(W), so its rest density is rho_0 / m.
         self.solver_iter_cnt = solver_iter_cnt
@@ -13,6 +47,7 @@ class PBDFluid(SPHBase):
         self.dt[None] = dt
         self.m_V_override = self.ps.particle_radius ** 2
         self.mass_override = self.density_0 * self.m_V_override
+        self.max_speed = 10.0
 
     @ti.kernel
     def integrate(self):
@@ -72,6 +107,8 @@ class PBDFluid(SPHBase):
                 r = dist.norm()
                 correction = - self.k *  ti.math.pow(ti.math.min(self.cubic_kernel(r) / self.cubic_kernel(self.delta_q), 1.0), 4)
                 self.ps.delta_p[p_i] += (lambda_i + lambda_j + correction) * 1.0 / self.density_0  * self.cubic_kernel_derivative(dist)
+            dir = self.ps.delta_p[p_i] / (self.ps.delta_p[p_i].norm() + 1e-8);
+            self.ps.delta_p[p_i] = ti.math.min(self.ps.delta_p[p_i].norm(), self.max_speed * self.dt[None]) * dir
 
     @ti.kernel
     def calculate_pred_x(self):
@@ -82,7 +119,7 @@ class PBDFluid(SPHBase):
     def simulate_collisions(self, p_i, vec, d):
         # Collision factor, assume roughly (1-c_f)*velocity loss after collision
         c_f = 0.3
-        self.ps.delta_p[p_i] += vec * d
+        self.ps.delta_p[p_i] += vec * d * (1 + c_f)
 
 
     @ti.kernel
@@ -154,8 +191,8 @@ class PBDFluid(SPHBase):
         
     def step(self):
         self.integrate()
-        self.ps.initialize_particle_system()
         for _ in range(self.solver_iter_cnt):
+            self.ps.initialize_particle_system()
             self.substep()
         self.update_position_and_velocity()
         # self.apply_viscosity_pingpong()

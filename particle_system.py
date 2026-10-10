@@ -34,11 +34,6 @@ class ParticleSystem:
         # Particle related properties
         self.x = ti.Vector.field(self.dim, dtype=float)
         self.v = ti.Vector.field(self.dim, dtype=float)
-        # 用于pbd粒子
-        self.pred_x = ti.Vector.field(self.dim, dtype=float)
-        self.lambda_ = ti.field(dtype=float)
-        self.delta_p = ti.Vector.field(self.dim, dtype=float)
-        self.tmp_v = ti.Vector.field(self.dim, dtype=float)
 
         self.density = ti.field(dtype=float)
         self.pressure = ti.field(dtype=float)
@@ -48,7 +43,7 @@ class ParticleSystem:
         self.particle_neighbors_num = ti.field(int)
 
         self.particles_node = ti.root.dense(ti.i, self.particle_max_num)
-        self.particles_node.place(self.x, self.v, self.density, self.pressure, self.material, self.color, self.pred_x, self.lambda_, self.delta_p, self.tmp_v)
+        self.particles_node.place(self.x, self.v, self.density, self.pressure, self.material, self.color)
         self.particles_node.place(self.particle_neighbors_num)
         self.particle_node = self.particles_node.dense(ti.j, self.particle_max_num_neighbor)
         self.particle_node.place(self.particle_neighbors)
@@ -69,10 +64,7 @@ class ParticleSystem:
         self.pressure[p] = pressure
         self.material[p] = material
         self.color[p] = color
-        self.pred_x[p] = x
-        self.lambda_[p] = 0.0
-        self.delta_p[p] = ti.Vector.zero(float, self.dim)
-        self.tmp_v[p] = v
+        self.init_particle_extra(p, x, v)
 
     @ti.kernel
     def add_particles(self, new_particles_num: int,
@@ -108,10 +100,21 @@ class ParticleSystem:
             flag = flag and (0 <= cell[d] < self.grid_num[d])
         return flag
 
+    @ti.func
+    def search_position(self, p):
+        # Position used to build the spatial grid and neighbor lists.
+        # Subclasses (e.g. PBDParticleSystem) can override this to use pred_x.
+        return self.x[p]
+
+    @ti.func
+    def init_particle_extra(self, p, x, v):
+        # Hook for subclasses to initialize their own per-particle state.
+        pass
+
     @ti.kernel
     def allocate_particles_to_grid(self):
         for p in range(self.particle_num[None]):
-            cell = self.pos_to_index(self.x[p])
+            cell = self.pos_to_index(self.search_position(p))
             offset = ti.atomic_add(self.grid_particles_num[cell], 1)
             self.grid_particles[cell, offset] = p
 
@@ -121,7 +124,8 @@ class ParticleSystem:
             # Skip boundary particles
             if self.material[p_i] == self.material_boundary:
                 continue
-            center_cell = self.pos_to_index(self.x[p_i])
+            x_i = self.search_position(p_i)
+            center_cell = self.pos_to_index(x_i)
             cnt = 0
             for offset in ti.grouped(ti.ndrange(*((-1, 2),) * self.dim)):
                 if cnt >= self.particle_max_num_neighbor:
@@ -131,7 +135,7 @@ class ParticleSystem:
                     break
                 for j in range(self.grid_particles_num[cell]):
                     p_j = self.grid_particles[cell, j]
-                    distance = (self.x[p_i] - self.x[p_j]).norm()
+                    distance = (x_i - self.search_position(p_j)).norm()
                     if cnt < self.particle_max_num_neighbor and p_i != p_j and distance < self.support_radius:
                         self.particle_neighbors[p_i, cnt] = p_j
                         cnt += 1

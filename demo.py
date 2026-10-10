@@ -1,8 +1,7 @@
 import taichi as ti
 import numpy as np
-from particle_system import ParticleSystem
 from wcsph import WCSPHSolver
-from pbd import PBDFluid
+from pbd import PBDFluid, PBDParticleSystem
 
 ti.init(arch=ti.gpu)
 
@@ -11,7 +10,7 @@ ti.init(arch=ti.gpu)
 
 
 if __name__ == "__main__":
-    ps = ParticleSystem((512, 512))
+    ps = PBDParticleSystem((512, 512))
 
     ps.add_cube(lower_corner=[6, 2],
                 cube_size=[3.0, 5.0],
@@ -27,7 +26,7 @@ if __name__ == "__main__":
                 color=0x956333,
                 material=1)
 
-    pbd_solver = PBDFluid(ps, dt=5e-4)
+    pbd_solver = PBDFluid(ps, dt=2e-3)
     gui = ti.GUI(background_color=0xFFFFFF)
     iter = 0
     while gui.running:
