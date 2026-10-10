@@ -132,7 +132,7 @@ class ParticleSystem:
                 for j in range(self.grid_particles_num[cell]):
                     p_j = self.grid_particles[cell, j]
                     distance = (self.x[p_i] - self.x[p_j]).norm()
-                    if p_i != p_j and distance < self.support_radius:
+                    if cnt < self.particle_max_num_neighbor and p_i != p_j and distance < self.support_radius:
                         self.particle_neighbors[p_i, cnt] = p_j
                         cnt += 1
             self.particle_neighbors_num[p_i] = cnt

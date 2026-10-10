@@ -27,10 +27,14 @@ if __name__ == "__main__":
                 color=0x956333,
                 material=1)
 
-    pbd_solver = PBDFluid(ps)
+    pbd_solver = PBDFluid(ps, dt=5e-4)
     gui = ti.GUI(background_color=0xFFFFFF)
+    iter = 0
     while gui.running:
-        pbd_solver.step()
+        if iter == 1:
+            iter = 0
+            pbd_solver.step()
+        iter += 1
         particle_info = ps.dump()
         gui.circles(particle_info['position'] * ps.screen_to_world_ratio / 512,
                     radius=ps.particle_radius / 1.5 * ps.screen_to_world_ratio,
